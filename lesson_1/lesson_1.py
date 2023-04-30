@@ -29,9 +29,6 @@ def __ping_resource(args) -> None:
     for byte_line in subproc_ping.stdout:
         byte_line = byte_line.decode('cp866').encode('utf-8')
         print(byte_line.decode('utf-8'))
-        i += 1
-        if i > 4:
-            break
 
 
 if __name__ == '__main__':
@@ -85,8 +82,8 @@ if __name__ == '__main__':
 
     """-----   Задание № 5   -----"""
 
-    yandex_ping: tuple = ('ping', 'yandex.ru')
-    youtube_ping: tuple = ('ping', 'youtube.com')
+    yandex_ping: tuple = ('ping', '-c 4', 'yandex.ru')
+    youtube_ping: tuple = ('ping', '-c 4', 'youtube.com')
 
     __ping_resource(yandex_ping)
     __ping_resource(youtube_ping)
