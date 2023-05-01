@@ -1,7 +1,16 @@
 from socket import *
 import select
 from src.core.message_processor import MessageProcessor
+from src.core.log_decorator import Log
 from abc import ABC, abstractmethod
+
+import logging
+from src.log import config_client_log
+from src.log import config_server_log
+
+
+SERVER_LOG = logging.getLogger("server")
+CLIENT_LOG = logging.getLogger("client")
 
 
 class Runner(ABC):
@@ -25,6 +34,7 @@ class Runner(ABC):
     def run(self):
         pass
 
+    @Log(SERVER_LOG)
     def parse_message(self, message):
         message = message.decode(self.ENCODING_)
         parsed_message = self.messanger.get_object_from_json(message)
@@ -43,6 +53,7 @@ class Server(Runner):
         self._socket.settimeout(0.5)
         print(f"Сревер поднят на хосте: {self.host} с портом: {self.port}")
 
+    @Log(SERVER_LOG)
     def run(self):
         while True:
             try:
@@ -69,7 +80,7 @@ class Server(Runner):
                                 client=client, code=200, alert=f'{parsed_message.user.name} {parsed_message.user.status}')
                     except:
                         self.connections.remove(client)
-
+    @Log(SERVER_LOG)
     def send_responce(self, client, code, alert=None):
         gen_response = self.messanger.create_response_message(code, alert)
         gen_response_json = gen_response.encode_to_json()
@@ -83,11 +94,13 @@ class Client(Runner):
         self._socket.connect((self.host, self.port))
         self.login = None
 
+    @Log(CLIENT_LOG)
     def get_data(self):
         data = None
         while data is None:
             data = self._socket.recv(self.BLOCK_LEN)
 
+    @Log(CLIENT_LOG)
     def send_message(self, action='presence'):
         if self.login is None:
             self.login = 'Guest'
@@ -97,6 +110,7 @@ class Client(Runner):
         gen_message_json = gen_message.encode_to_json()
         self._socket.send(gen_message_json.encode(self.ENCODING_))
 
+    @Log(CLIENT_LOG)
     def run(self):
         self.send_message()
         response_encoded = self._socket.recv(self.BLOCK_LEN)
