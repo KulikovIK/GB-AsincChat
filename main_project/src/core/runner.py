@@ -1,6 +1,6 @@
 from socket import *
 import select
-from core.message_processor import MessageProcessor
+from src.core.message_processor import MessageProcessor
 from abc import ABC, abstractmethod
 
 class Runner(ABC):

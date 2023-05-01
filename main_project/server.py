@@ -1,4 +1,4 @@
-from core import get_app_arguments, Server
+from src.core import get_app_arguments, Server
 
 
 _DESCRIPTOR = "server"

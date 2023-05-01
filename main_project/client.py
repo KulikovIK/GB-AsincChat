@@ -1,4 +1,4 @@
-from core import get_app_arguments, Client
+from src.core import get_app_arguments, Client
 
 
 _DESCRIPTOR = "client"
