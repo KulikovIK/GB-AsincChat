@@ -3,6 +3,7 @@ import select
 from src.core.message_processor import MessageProcessor
 from abc import ABC, abstractmethod
 
+
 class Runner(ABC):
 
     BLOCK_LEN: int = 1024
@@ -23,7 +24,7 @@ class Runner(ABC):
     @abstractmethod
     def run(self):
         pass
-    
+
     def parse_message(self, message):
         message = message.decode(self.ENCODING_)
         parsed_message = self.messanger.get_object_from_json(message)
@@ -87,12 +88,12 @@ class Client(Runner):
         while data is None:
             data = self._socket.recv(self.BLOCK_LEN)
 
-
     def send_message(self, action='presence'):
         if self.login is None:
             self.login = 'Guest'
         print(self.__class__.__name__)
-        gen_message = self.messanger.create_presence_message(name=self.login, action=action)
+        gen_message = self.messanger.create_presence_message(
+            name=self.login, action=action)
         gen_message_json = gen_message.encode_to_json()
         self._socket.send(gen_message_json.encode(self.ENCODING_))
 
@@ -101,4 +102,3 @@ class Client(Runner):
         response_encoded = self._socket.recv(self.BLOCK_LEN)
         response = self.parse_message(response_encoded)
         print(f'Статус: {response.response}, {response.alert}')
-
