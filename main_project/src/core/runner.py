@@ -3,6 +3,7 @@ import select
 from src.core.message_processor import MessageProcessor
 from src.core.log_decorator import Log
 from abc import ABC, abstractmethod
+from threading import Thread
 
 import logging
 from src.log import config_client_log
@@ -75,15 +76,21 @@ class Server(Runner):
                     data = client.recv(self.BLOCK_LEN)
                     parsed_message = self.parse_message(data)
                     try:
-                        if parsed_message.action == 'presence' and (client in write_):
+                        if parsed_message.action == "presence" and (client in write_):
                             self.send_responce(
-                                client=client, code=200, alert=f'{parsed_message.user.name} {parsed_message.user.status}')
+                                client=client, code=200, alert=f"{parsed_message.from_user.name} {parsed_message.from_user.status} подключился к чату", all=True)
+                        if (parsed_message.action == 'msg' and parsed_message.to_user == 'ALL') and (client in write_):
+                            self.send_responce(client=client, code=200, alert=f'{parsed_message.from_user.name}: {parsed_message.message}', all=True)
                     except:
                         self.connections.remove(client)
+    
     @Log(SERVER_LOG)
-    def send_responce(self, client, code, alert=None):
+    def send_responce(self, client, code, alert=None, all=False):
         gen_response = self.messanger.create_response_message(code, alert)
         gen_response_json = gen_response.encode_to_json()
+        if all:
+            for client in self.connections:
+                client.sendall(gen_response_json.encode(self.ENCODING_))
         client.send(gen_response_json.encode(self.ENCODING_))
 
 
@@ -99,20 +106,47 @@ class Client(Runner):
         data = None
         while data is None:
             data = self._socket.recv(self.BLOCK_LEN)
+        return data
 
     @Log(CLIENT_LOG)
-    def send_message(self, action='presence'):
+    def send_message(self, action:str="presence", message:str=None):
+        
         if self.login is None:
-            self.login = 'Guest'
-        print(self.__class__.__name__)
-        gen_message = self.messanger.create_presence_message(
-            name=self.login, action=action)
-        gen_message_json = gen_message.encode_to_json()
-        self._socket.send(gen_message_json.encode(self.ENCODING_))
+            print("Введите логин")
+            self.login = input('> : ')
 
+        if action == "presence":
+            gen_message = self.messanger.create_presence_message(
+                from_user=self.login, action=action)
+            gen_message_json = gen_message.encode_to_json()
+            self._socket.send(gen_message_json.encode(self.ENCODING_))
+        
+        else:
+            gen_message = self.messanger.create_message_to_chat(
+                from_user=self.login, action=action, message=message)
+            gen_message_json = gen_message.encode_to_json()
+            self._socket.send(gen_message_json.encode(self.ENCODING_))
+
+    def read_server_response(self):
+        while True:
+            response = self.get_data()
+            response = self.parse_message(response)
+            print(f'Статус: {response.response}, {response.alert}')
+    
     @Log(CLIENT_LOG)
     def run(self):
-        self.send_message()
-        response_encoded = self._socket.recv(self.BLOCK_LEN)
+        self.send_message(action="presence")
+        response_encoded = self.get_data()
         response = self.parse_message(response_encoded)
-        print(f'Статус: {response.response}, {response.alert}')
+        thread = Thread(target=self.read_server_response)
+        thread.daemon = True
+        thread.start()
+
+        while True:
+            message = input('> : ')
+
+            if message == '/q':
+                break
+
+            self.send_message(action='msg', message=message)
+
