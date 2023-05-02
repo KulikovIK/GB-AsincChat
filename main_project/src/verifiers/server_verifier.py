@@ -21,6 +21,6 @@ class ServerVerifier(type):
         if 'connect'.lower() in methods:
             raise TypeError(
                 "Класс Server не может использовать метод 'connect'")
-        if not ('socket_transport'.lower() in attributes and 'create_socket'.lower() in methods):
+        if not ('host' in attributes and 'port' in attributes):
             raise TypeError('Некорректная инициализация сокета')
         super.__init__(clsname, bases, clsdict)
