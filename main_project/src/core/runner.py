@@ -8,7 +8,8 @@ from threading import Thread
 import logging
 from src.log import config_client_log
 from src.log import config_server_log
-
+# from src.verifiers.client_verifier import ClientVerifier
+# from src.verifiers.server_verifier import ServerVerifier
 
 SERVER_LOG = logging.getLogger("server")
 CLIENT_LOG = logging.getLogger("client")
@@ -149,4 +150,3 @@ class Client(Runner):
                 break
 
             self.send_message(action='msg', message=message)
-
