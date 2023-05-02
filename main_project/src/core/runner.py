@@ -10,7 +10,8 @@ from src.log import config_client_log
 from src.log import config_server_log
 # from src.verifiers.client_verifier import ClientVerifier
 # from src.verifiers.server_verifier import ServerVerifier
-
+from src.db.db import DB
+from src.db.db_config import Config
 SERVER_LOG = logging.getLogger("server")
 CLIENT_LOG = logging.getLogger("client")
 
@@ -54,6 +55,7 @@ class Server(Runner):
         self._socket.listen(5)
         self._socket.settimeout(0.5)
         print(f"Сревер поднят на хосте: {self.host} с портом: {self.port}")
+        self.db = DB(Config.__dict__)
 
     @Log(SERVER_LOG)
     def run(self):
