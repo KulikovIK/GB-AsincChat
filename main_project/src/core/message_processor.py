@@ -21,7 +21,7 @@ class MessageProcessor():
         return MessageProcessorEncoder().encode(self)
     
     @staticmethod
-    def _gen_default_message( from_user, action):
+    def _gen_default_message(from_user, action):
         return {
             "action": action, 
             "time": time.ctime(),
@@ -36,37 +36,54 @@ class MessageProcessor():
         return json.JSONDecoder(object_hook=MessageProcessor).decode(json_obj)
     
     @staticmethod
-    def create_presence_message(from_user, action):
-        mesage = MessageProcessor._gen_default_message(from_user=from_user, action=action)
-        return MessageProcessor(mesage)
+    def create_presence_message(from_user, _action:str="presence"):
+        message = MessageProcessor._gen_default_message(from_user=from_user, action=_action)
+        return MessageProcessor(message)
 
 
     @staticmethod
-    def create_message_to_user(from_user, action, to_user, message):
-        mesage = MessageProcessor._gen_default_message(from_user, action)
-        mesage['to_user'] = to_user
-        mesage['message'] = message
-        return MessageProcessor(mesage)
+    def create_message_to_user(from_user, to_user, message, _action:str = "msg"):
+        message = MessageProcessor._gen_default_message(from_user, action=_action)
+        message['to_user'] = to_user
+        message['message'] = message
+        return MessageProcessor(message)
     
     @staticmethod
-    def create_message_to_chat(from_user, action, message,):
-        mesage = MessageProcessor._gen_default_message(from_user, action)
-        mesage["to_user"] = "ALL"
-        mesage["message"] = message
-        return MessageProcessor(mesage)
+    def create_message_to_chat(from_user, message, _action:str = "msg"):
+        message = MessageProcessor._gen_default_message(from_user, action=_action)
+        message["to_user"] = "ALL"
+        message["message"] = message
+        return MessageProcessor(message)
     
     @staticmethod
-    def join_chat(from_user, action, room_name):
-        mesage = MessageProcessor._gen_default_message(from_user, action)
-        mesage["room"] = room_name
-        return MessageProcessor(mesage)
+    def join_chat(from_user, room_name, _action:str="join"):
+        message = MessageProcessor._gen_default_message(from_user, action=_action)
+        message["room"] = room_name
+        return MessageProcessor(message)
     
     @staticmethod
-    def leave_chat(from_user, action, room_name):
-        mesage = MessageProcessor._gen_default_message(from_user, action)
-        mesage["room"] = room_name
-        return MessageProcessor(mesage)
+    def leave_chat(from_user, room_name, _action:str="leave"):
+        message = MessageProcessor._gen_default_message(from_user, action=_action)
+        message["room"] = room_name
+        return MessageProcessor(message)
 
     @staticmethod
     def create_response_message(code, alert=None):
         return MessageProcessor({'response': code, 'alert': alert})
+
+    @staticmethod
+    def get_contact_list(from_user, _action:str="get_contacts"):
+        return MessageProcessor._gen_default_message(from_user, action=_action)
+
+    @staticmethod
+    def add_contact(from_user, user_id, _action:str="add_contact"):
+
+        message = MessageProcessor._gen_default_message(from_user, action=_action)
+        message["user_id"] = user_id
+        return MessageProcessor(message)
+
+    @staticmethod
+    def dell_contact(from_user, user_id, __action:str="del_contact"):
+        message = MessageProcessor._gen_default_message(from_user, action=_action)
+        message["user_id"] = user_id
+        return MessageProcessor(message)
