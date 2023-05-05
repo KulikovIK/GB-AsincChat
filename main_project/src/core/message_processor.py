@@ -10,6 +10,7 @@ class MessageProcessorEncoder(json.JSONEncoder):
 class MessageProcessor():
 
     def __init__(self, msg) -> None:
+        print(f"\n\n{msg}\n\n")
         for key, val in msg.items():
             if isinstance(val, dict):
                 sub_val = MessageProcessor(val)
@@ -37,35 +38,35 @@ class MessageProcessor():
     
     @staticmethod
     def create_presence_message(from_user, _action:str="presence"):
-        message = MessageProcessor._gen_default_message(from_user=from_user, action=_action)
-        return MessageProcessor(message)
+        genered_message = MessageProcessor._gen_default_message(from_user=from_user, action=_action)
+        return MessageProcessor(genered_message)
 
 
     @staticmethod
     def create_message_to_user(from_user, to_user, message, _action:str = "msg"):
-        message = MessageProcessor._gen_default_message(from_user, action=_action)
-        message['to_user'] = to_user
-        message['message'] = message
-        return MessageProcessor(message)
+        genered_message = MessageProcessor._gen_default_message(from_user, action=_action)
+        genered_message['to_user'] = to_user
+        genered_message['message'] = message
+        return MessageProcessor(genered_message)
     
     @staticmethod
     def create_message_to_chat(from_user, message, _action:str = "msg"):
-        message = MessageProcessor._gen_default_message(from_user, action=_action)
-        message["to_user"] = "ALL"
-        message["message"] = message
-        return MessageProcessor(message)
+        genered_message = MessageProcessor._gen_default_message(from_user, action=_action)
+        genered_message["to_user"] = "ALL"
+        genered_message["message"] = message
+        return MessageProcessor(genered_message)
     
     @staticmethod
     def join_chat(from_user, room_name, _action:str="join"):
-        message = MessageProcessor._gen_default_message(from_user, action=_action)
-        message["room"] = room_name
-        return MessageProcessor(message)
+        genered_message = MessageProcessor._gen_default_message(from_user, action=_action)
+        genered_message["room"] = room_name
+        return MessageProcessor(genered_message)
     
     @staticmethod
     def leave_chat(from_user, room_name, _action:str="leave"):
-        message = MessageProcessor._gen_default_message(from_user, action=_action)
-        message["room"] = room_name
-        return MessageProcessor(message)
+        genered_message = MessageProcessor._gen_default_message(from_user, action=_action)
+        genered_message["room"] = room_name
+        return MessageProcessor(genered_message)
 
     @staticmethod
     def create_response_message(code, alert=None):
@@ -78,12 +79,12 @@ class MessageProcessor():
     @staticmethod
     def add_contact(from_user, user_id, _action:str="add_contact"):
 
-        message = MessageProcessor._gen_default_message(from_user, action=_action)
-        message["user_id"] = user_id
-        return MessageProcessor(message)
+        genered_message = MessageProcessor._gen_default_message(from_user, action=_action)
+        genered_message["user_id"] = user_id
+        return MessageProcessor(genered_message)
 
     @staticmethod
     def dell_contact(from_user, user_id, __action:str="del_contact"):
-        message = MessageProcessor._gen_default_message(from_user, action=_action)
-        message["user_id"] = user_id
-        return MessageProcessor(message)
+        genered_message = MessageProcessor._gen_default_message(from_user, action=_action)
+        genered_message["user_id"] = user_id
+        return MessageProcessor(genered_message)

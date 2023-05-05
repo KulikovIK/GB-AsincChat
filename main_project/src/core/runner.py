@@ -10,7 +10,8 @@ from src.log import config_client_log
 from src.log import config_server_log
 # from src.verifiers.client_verifier import ClientVerifier
 # from src.verifiers.server_verifier import ServerVerifier
-from src.db.db import DB
+from main_project.src.db.server_db import DB as ServerDB
+from main_project.src.db.client_db import DB as ClientDB
 from src.db.db_config import Config
 SERVER_LOG = logging.getLogger("server")
 CLIENT_LOG = logging.getLogger("client")
@@ -55,7 +56,7 @@ class Server(Runner):
         self._socket.listen(5)
         self._socket.settimeout(0.5)
         print(f"Сревер поднят на хосте: {self.host} с портом: {self.port}")
-        self.db = DB(Config.__dict__)
+        self.db = ServerDB(Config.__dict__)
 
     @Log(SERVER_LOG)
     def run(self):
@@ -76,9 +77,10 @@ class Server(Runner):
                 except Exception:
                     pass
                 for client in responce_:
-                    data = client.recv(self.BLOCK_LEN)
-                    parsed_message = self.parse_message(data)
                     try:
+                        data = client.recv(self.BLOCK_LEN)
+                        parsed_message = self.parse_message(data)
+                    
                         if parsed_message.action == "presence" and (client in write_):
                             self.send_responce(
                                 client=client, code=200, alert=f"{parsed_message.from_user.name} {parsed_message.from_user.status} подключился к чату", all=True)
@@ -101,18 +103,20 @@ class Client(Runner):
 
     def __init__(self, host: str, port: int) -> None:
         super().__init__(host=host, port=port)
+        self.db = ClientDB(Config.__dict__)
         self._socket.connect((self.host, self.port))
         self.login = None
-
-    @Log(CLIENT_LOG)
+        
+        
+    # @Log(CLIENT_LOG)
     def get_data(self):
         data = None
         while data is None:
             data = self._socket.recv(self.BLOCK_LEN)
         return data
 
-    @Log(CLIENT_LOG)
-    def send_message(self, action:str="presence", message:str=None):
+    # @Log(CLIENT_LOG)
+    def send_message(self, action:str=None, message:str=None):
         
         if self.login is None:
             print("Введите логин")
@@ -120,23 +124,26 @@ class Client(Runner):
 
         if action == "presence":
             gen_message = self.messanger.create_presence_message(
-                from_user=self.login, action=action)
+                from_user=self.login)
             gen_message_json = gen_message.encode_to_json()
             self._socket.send(gen_message_json.encode(self.ENCODING_))
         
         else:
             gen_message = self.messanger.create_message_to_chat(
-                from_user=self.login, action=action, message=message)
+                from_user=self.login, message=message)
             gen_message_json = gen_message.encode_to_json()
             self._socket.send(gen_message_json.encode(self.ENCODING_))
 
     def read_server_response(self):
         while True:
-            response = self.get_data()
-            response = self.parse_message(response)
-            print(f'Статус: {response.response}, {response.alert}')
+            try:
+                response = self.get_data()
+                response = self.parse_message(response)
+                print(f'Статус: {response.response}, {response.alert}')
+            except Exception:
+                print(response)
     
-    @Log(CLIENT_LOG)
+    # @Log(CLIENT_LOG)
     def run(self):
         self.send_message(action="presence")
         response_encoded = self.get_data()

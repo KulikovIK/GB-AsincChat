@@ -16,6 +16,7 @@ class Config():
     DEBUG = os.getenv('DEBUG')
     SECRET_KEY = os.getenv('SECRET_KEY')
     SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'src/db', 'messenger.db')
+    SQLALCHEMY_DATABASE_URI_CLIENT = 'sqlite:///' + os.path.join(BASE_DIR, 'src/db', 'client.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_MIGRATE_REPO = os.path.join(BASE_DIR, 'db_repository')
     DATABASE_CONNECT_OPTIONS = {}
