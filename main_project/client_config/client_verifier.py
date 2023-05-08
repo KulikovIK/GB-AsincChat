@@ -15,7 +15,7 @@ class ClientVerifier(type):
                         if el.argval not in methods:
                             methods.append(el.argval)
 
-        for command in ('accept', 'listen', 'socket'):
+        for command in ('accept', 'listen'):
             if command in methods:
                 raise TypeError(
                     f'В классе Client обнаружено использование запрещенного метода - {command}')

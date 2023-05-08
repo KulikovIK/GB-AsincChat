@@ -1,15 +1,14 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DisconnectionError
-import os
-from client_config.db.models.client_db import ClientDB
+from client_config.db.models.client_db import mapper_register
+from client_config.db.db_config import Config
 
 class DB(object):
-    DB_BASE = ClientDB()
+    DB_BASE = mapper_register.metadata
 
-    def __init__(self, config_dict):
-        self.config = config_dict
+    def __init__(self):
+        self.config = Config.__dict__
         if self.config["DEBUG"]:
             echo = True
         else:
@@ -32,7 +31,7 @@ class DB(object):
         return result
 
     def create_tables(self):   
-        self.DB_BASE.metadata.create_all(self.engine)
+        self.DB_BASE.create_all(self.engine)
 
     def drop_tables(self):
-        self.DB_BASE.metadata.drop_all(self.engine)
+        self.DB_BASE.drop_all(self.engine)

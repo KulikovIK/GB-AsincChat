@@ -11,21 +11,24 @@
 from PyQt5 import QtCore, QtGui, QtWidgets, QtSql
 from client_config.db.client_db import DB
 from client import Client
-# from Client_database_creation import Contact, Msg_history, Contact_list
+from client_config.db.models.client_db import User, Message_history, Contact_list
 from sqlalchemy import create_engine, desc, or_, and_
 from sqlalchemy.orm import sessionmaker, query
-# from client_2 import Client
+
 import threading
 import datetime
 import time
 import json
 from PyQt5 import QtCore, QtGui, QtWidgets
-import logging
-# import log.client_log_config
 
-# logger=logging.getLogger('client')
+import logging
+from client_config.loger import config_client_log
+
+
+CLIENT_LOG = logging.getLogger("client")
 
 socket_lock = threading.Lock()
+
 
 class Ui_chatWindow(object):
 
@@ -34,12 +37,14 @@ class Ui_chatWindow(object):
         chatWindow.setObjectName("chatWindow")
         chatWindow.resize(555, 444)
 
-        self.User = Client(login=enter_ui.user_name.text(), port=7777, host='localhost', password=enter_ui.user_password.text())
-        self.User.send(self.User.send_message(action="presence"))
+        self.User = Client(login=enter_ui.user_name.text(
+        ), port=8007, host='localhost', password=enter_ui.user_password.text())
+        self.User.send(self.User.create_presence_msg())
 
         self.session = self.User.session
 
-        thr_recieve = threading.Thread(target=self.User.recieve, args=(), daemon=1)
+        thr_recieve = threading.Thread(
+            target=self.User.recieve, args=(), daemon=1)
         thr_recieve.start()
 
         self.chat_is_open = False
@@ -101,56 +106,65 @@ class Ui_chatWindow(object):
     def retranslateUi(self, chatWindow):
         _translate = QtCore.QCoreApplication.translate
         chatWindow.setWindowTitle(_translate("chatWindow", "MainWindow"))
-        self.btn_add_contact.setText(_translate("chatWindow", "+      New contact"))
+        self.btn_add_contact.setText(_translate(
+            "chatWindow", "+      New contact"))
         self.btn_send.setText(_translate("chatWindow", ">"))
 
     def db_contact_list(self):
         result = []
         contact_list = self.session.query(Contact_list).all()
         for line in contact_list:
-            contact = self.session.query(Contact).filter_by(id=line.contact_id).first()
+            contact = self.session.query(User).filter_by(
+                id=line.contact_id).first()
             result.append(contact.name)
         return result
 
     def client_history(self):
-        contact = self.session.query(Contact).filter_by(name=self.chat_is_open).first()
-        msgs = self.session.query(Msg_history).filter(and_(
-                                                      or_(Msg_history.from_==self.User.name, Msg_history.from_==contact.name),
-                                                      or_(Msg_history.to_==contact.name, Msg_history.to_==self.User.name))).order_by(desc(Msg_history.id)).limit(6)
+        contact = self.session.query(User).filter_by(
+            name=self.chat_is_open).first()
+        msgs = self.session.query(Message_history).filter(and_(
+            or_(Message_history.from_ == self.User.name,
+                Message_history.from_ == contact.name),
+            or_(Message_history.to_ == contact.name, Message_history.to_ == self.User.name))).order_by(desc(Message_history.id)).limit(6)
         self.chat.setText('')
-        msg_list=[]
+        msg_list = []
         for msg in msgs:
-            msg= msg.msg +'\n'+str(msg.time.replace(microsecond=0))+ ' from '+msg.from_+'\n\n'
+            msg = msg.msg + '\n' + \
+                str(msg.time.replace(microsecond=0)) + \
+                ' from '+msg.from_+'\n\n'
             msg_list.append(msg)
         for msg in msg_list[::-1]:
             self.chat.setText(self.chat.toPlainText() + msg)
 
     def on_2Clicked(self, item):
-        self.chat_is_open=item.text()
+        self.chat_is_open = item.text()
         self.client_history()
 
     def send_msg(self):
         if self.chat_is_open:
-            #self.chat.setText(self.chat.toPlainText()+ self.text_enter.toPlainText()+'\n'+str(datetime.datetime.now())+' from '+Mary.name+'\n\n')
-            self.User.send(self.User.create_msg(self.chat_is_open, self.text_enter.toPlainText()))
-            msg= self.text_enter.toPlainText()+'\n'+str(datetime.datetime.now().replace(microsecond=0))+' from '+self.User.name+'\n\n'
-            self.chat.setText(self.chat.toPlainText()+ msg)
+            # self.chat.setText(self.chat.toPlainText()+ self.text_enter.toPlainText()+'\n'+str(datetime.datetime.now())+' from '+Mary.name+'\n\n')
+            self.User.send(self.User.create_msg(
+                self.chat_is_open, self.text_enter.toPlainText()))
+            msg = self.text_enter.toPlainText()+'\n' + \
+                str(datetime.datetime.now().replace(microsecond=0)) + \
+                ' from '+self.User.name+'\n\n'
+            self.chat.setText(self.chat.toPlainText() + msg)
 
             self.text_enter.setPlainText('')
 
     def add_new_contact(self):
-        text, ok = QtWidgets.QInputDialog.getText(chatWindow, 'Add form', 'Name of new contact')
+        text, ok = QtWidgets.QInputDialog.getText(
+            chatWindow, 'Add form', 'Name of new contact')
         if ok:
             self.contact_list_2.addItem(str(text))
             self.User.send(self.User.add_contact(text))
-
 
     def recieve(self):
         time.sleep(2)
         while True:
             try:
                 data = self.User.s.recv(10000)
-                # logger.debug(f'The message {data.decode("utf-8")} is recieved ')
+                CLIENT_LOG.debug(f'The message {data.decode("utf-8")} is recieved ')
                 data = data.decode("utf-8")
                 data = data.replace('}{', '};{')
                 msgs_in_data = data.split(';')
@@ -158,19 +172,23 @@ class Ui_chatWindow(object):
                     json_data = json.loads(msg)
                     if json_data.get('action'):
                         self.User.add_msg_in_history(json_data, False)
-                        if self.chat_is_open==json_data['user']['name'] or self.chat_is_open=='all':
-                            self.chat.setText(self.chat.toPlainText() + json_data['text'])
+                        if self.chat_is_open == json_data['user']['name'] or self.chat_is_open == 'all':
+                            self.chat.setText(
+                                self.chat.toPlainText() + json_data['text'])
                         self.client_history()
                         new_msg = QtWidgets.QMessageBox(chatWindow)
-                        new_msg.setWindowTitle("from "+ str(json_data['user']['name']))
+                        new_msg.setWindowTitle(
+                            "from " + str(json_data['user']['name']))
                         new_msg.setText(json_data['text'])
-                        new_msg.setStandardButtons(QtWidgets.QMessageBox.Cancel)
+                        new_msg.setStandardButtons(
+                            QtWidgets.QMessageBox.Cancel)
 
                         new_msg.exec_()
             except BaseException as e:
-                # logger.error(e)
-                # logger.debug(f'recieve finished')
+                CLIENT_LOG.error(e)
+                CLIENT_LOG.debug(f'recieve finished')
                 break
+
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
@@ -181,7 +199,8 @@ class Ui_Dialog(object):
         self.buttonBox = QtWidgets.QDialogButtonBox(Dialog)
         self.buttonBox.setGeometry(QtCore.QRect(30, 240, 341, 32))
         self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
-        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel|QtWidgets.QDialogButtonBox.Ok)
+        self.buttonBox.setStandardButtons(
+            QtWidgets.QDialogButtonBox.Cancel | QtWidgets.QDialogButtonBox.Ok)
         self.buttonBox.setObjectName("buttonBox")
 
         self.lable_name = QtWidgets.QLabel(Dialog)
@@ -208,16 +227,17 @@ class Ui_Dialog(object):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
         self.lable_name.setText(_translate("Dialog", " login"))
-        self.user_name.setText('Tom')
+        self.user_name.setText('tom')
         self.lable_password.setText(_translate("Dialog", " password"))
-        self.user_password.setText('Tom')
+        self.user_password.setText('tom')
 
     def enter(self):
-        if self.user_name.text()!='':
+        if self.user_name.text() != '':
 
             ui.setupUi(chatWindow)
             chatWindow.show()
             enterWindow.close()
+
 
 if __name__ == "__main__":
     import sys
@@ -226,8 +246,8 @@ if __name__ == "__main__":
     chatWindow = QtWidgets.QMainWindow()
     ui = Ui_chatWindow()
 
-    enterWindow= QtWidgets.QDialog()
-    enter_ui=Ui_Dialog()
+    enterWindow = QtWidgets.QDialog()
+    enter_ui = Ui_Dialog()
     enter_ui.setupUi(enterWindow)
     enterWindow.show()
 

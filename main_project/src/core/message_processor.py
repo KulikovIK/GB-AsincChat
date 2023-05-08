@@ -37,8 +37,9 @@ class MessageProcessor():
         return json.JSONDecoder(object_hook=MessageProcessor).decode(json_obj)
     
     @staticmethod
-    def create_presence_message(from_user, _action:str="presence"):
+    def create_presence_message(from_user, password, _action:str="presence"):
         genered_message = MessageProcessor._gen_default_message(from_user=from_user, action=_action)
+        genered_message["password"] = password
         return MessageProcessor(genered_message)
 
 
