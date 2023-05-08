@@ -23,4 +23,4 @@ class ServerVerifier(type):
                 "Класс Server не может использовать метод 'connect'")
         if not ('host' in attributes and 'port' in attributes):
             raise TypeError('Некорректная инициализация сокета')
-        super.__init__(clsname, bases, clsdict)
+        super().__init__(clsname, bases, clsdict)

@@ -19,9 +19,4 @@ class ClientVerifier(type):
             if command in methods:
                 raise TypeError(
                     f'В классе Client обнаружено использование запрещенного метода - {command}')
-        if 'parse_response' in methods or 'send_message' in methods:
-            pass
-        else:
-            raise TypeError(
-                'Отсутствуют вызовы функций, работающих с сокетами.')
-        super.__init__(clsname, bases, clsdict)
+        super().__init__(clsname, bases, clsdict)

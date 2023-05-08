@@ -1,4 +1,5 @@
-from src.core import get_app_arguments, Client
+from src.core import get_app_arguments
+from client_config.runner import Client
 from src.ui.ui_window import Ui_MainWindow
 import sys
 from PyQt5 import QtWidgets

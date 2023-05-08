@@ -3,10 +3,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DisconnectionError
 import os
-from src.db.models.messanger_db import MessangerDB
+from client_config.db.models.client_db import ClientDB
 
 class DB(object):
-    DB_BASE = MessangerDB()
+    DB_BASE = ClientDB()
 
     def __init__(self, config_dict):
         self.config = config_dict
