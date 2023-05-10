@@ -34,13 +34,13 @@ class Ui_chatWindow(object):
 
     def setupUi(self, chatWindow):
         """ Main window"""
+
         chatWindow.setObjectName("chatWindow")
         chatWindow.resize(555, 444)
 
         self.User = Client(login=enter_ui.user_name.text(
         ), port=8007, host='localhost', password=enter_ui.user_password.text())
-        self.User.send(self.User.create_presence_msg())
-
+        
         self.session = self.User.session
 
         thr_recieve = threading.Thread(
@@ -111,12 +111,13 @@ class Ui_chatWindow(object):
         self.btn_send.setText(_translate("chatWindow", ">"))
 
     def db_contact_list(self):
+        #  без заполненной БД не работает
         result = []
         contact_list = self.session.query(Contact_list).all()
         for line in contact_list:
-            contact = self.session.query(User).filter_by(
-                id=line.contact_id).first()
-            result.append(contact.name)
+            # contact = self.session.query(User).filter_by(
+            #     id=line.contact_id).first()
+            result.append(line.name)
         return result
 
     def client_history(self):

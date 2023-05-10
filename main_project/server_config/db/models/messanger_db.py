@@ -9,9 +9,9 @@ user = Table(
     'User',
     mapper_register.metadata,
     Column('id', Integer, primary_key=True),
-    Column('login', String(24), nullable=False),
+    Column('name', String(24), nullable=False),
     Column('password', String(120), nullable=False),
-    Column('is_active', Boolean, default=False),
+    Column('is_active', Boolean, default=True),
 )
 
 user_history = Table(

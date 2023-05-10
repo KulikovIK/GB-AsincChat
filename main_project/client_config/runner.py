@@ -40,21 +40,17 @@ class Client(threading.Thread, metaclass=ClientVerifier):
         self.password = password
         self.db = ClientDB()
         self.session = self.db.session
-        self.connect()
-
+        self._socket.connect((self.host, self.port))
+       
+        self._socket.send(json.dumps({'name': self.login, 'password': self.password}).encode('utf-8'))
+        time.sleep(1)
+        self.client_authenticate(self._socket)
+        self.send(self.create_presence_msg())
 
     def __del__(self):
         self._socket.close()
 
-    def connect(self):
-        self._socket.connect((self.host, self.port))
-        gen_message = self.messanger.create_presence_message(
-                from_user=self.login, password=self.password)
-        gen_message_json = gen_message.encode_to_json()
-        self._socket.send(gen_message_json.encode(self.ENCODING_))
-
-
-    def client_authenticate(connection):
+    def client_authenticate(self, connection):
         """Аутентификация клиента"""
         message = connection.recv(32)
         hash = hmac.new(b'our_secret_key', message, digestmod = hashlib.sha256)
@@ -63,15 +59,15 @@ class Client(threading.Thread, metaclass=ClientVerifier):
 
     def get_contacts(self):
         """Запрос списка контактов"""
-        return json.dumps({"action": "get_contacts","time": time.ctime(),"user_login": self.name})
+        return json.dumps({"action": "get_contacts","time": time.ctime(),"user_login": self.login})
 
     def add_contact(self, nickname):
         """Запрос на добавление контакта"""
-        return json.dumps({"action": "add_contact","user_id": nickname,"time": time.ctime(),"user_login": self.name})
+        return json.dumps({"action": "add_contact","user_id": nickname,"time": time.ctime(),"user_login": self.login})
 
     def del_contact(self, nickname):
         """Запрос на удаление контакта"""
-        return json.dumps({"action": "del_contact","user_id": nickname,"time": time.ctime(),"user_login": self.name})
+        return json.dumps({"action": "del_contact","user_id": nickname,"time": time.ctime(),"user_login": self.login})
 
     def create_presence_msg(self):
         """Формирование presence сообщение"""
@@ -90,12 +86,13 @@ class Client(threading.Thread, metaclass=ClientVerifier):
         return json.dumps({"action": "msg",
                            "text":text,
                 "time": time.ctime(),
-                "user":{"name": self.name,"status": "here"},
+                "user":{"name": self.login,"status": "here"},
                           'to_user':to_user})
 
     def send(self, msg):
         """Функция отправки запросов и сообщений"""
         try:
+            print(msg)
             self._socket.send(msg.encode('utf-8'))
             CLIENT_LOG.debug(f'The message {msg} is sent')
             msg= json.loads(msg)
@@ -158,9 +155,9 @@ class Client(threading.Thread, metaclass=ClientVerifier):
         with socket_lock:
             if send:
                 try:
-                    client=self.session.query(User).filter_by(name=self.name).first()
+                    client=self.session.query(User).filter_by(name=self.login).first()
                     if client is None:
-                        client = User(self.name)
+                        client = User(self.login)
                         self.session.add(client)
                     contact = self.session.query(User).filter_by(name=msg['to_user']).first()
                     if contact is None:
@@ -176,7 +173,7 @@ class Client(threading.Thread, metaclass=ClientVerifier):
                 try:
                     client=self.session.query(User).filter_by(name=msg['to_user']).first()
                     if client is None:
-                        client = User(self.name)
+                        client = User(self.login)
                         self.session.add(client)
                     contact = self.session.query(User).filter_by(name=msg['user']['name']).first()
                     if contact is None:

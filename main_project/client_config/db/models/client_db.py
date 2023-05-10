@@ -14,8 +14,8 @@ user = Table(
 contact_list = Table(
     'contact_list', mapper_register.metadata,
     Column('id', Integer, primary_key=True),
-    Column('host_id', ForeignKey('User.id')),
-    Column('contact_id', ForeignKey('User.id')),
+    # Column('host_id', ForeignKey('User.name')),
+    Column('contact_id', ForeignKey('User.name')),
 )
 
 message_history = Table(
