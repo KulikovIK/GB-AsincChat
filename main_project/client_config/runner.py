@@ -14,6 +14,7 @@ from client_config.loger import config_client_log
 from client_config.client_verifier import ClientVerifier
 from client_config.db.client_db import DB as ClientDB
 from client_config.db.models.client_db import User, Message_history, Contact_list
+from src.core.message_processor import MessageProcessor
 
 
 CLIENT_LOG = logging.getLogger("client")
@@ -34,46 +35,54 @@ class Client(threading.Thread, metaclass=ClientVerifier):
     _socket = socket(AF_INET, SOCK_STREAM)
 
     def __init__(self, host: str, port: int, login: str = None, password: str = None) -> None:
+        threading.Thread.__init__(self)
         self.host = host
         self.port = port
-        self.login = login
-        self.password = password
         self.db = ClientDB()
         self.session = self.db.session
+        self.db_user = self.session.query(User).filter_by(name=login).first()
         self._socket.connect((self.host, self.port))
-       
-        self._socket.send(json.dumps({'name': self.login, 'password': self.password}).encode('utf-8'))
-        time.sleep(1)
-        self.client_authenticate(self._socket)
-        self.send(self.create_presence_msg())
+
+        self.login_user(login=login, password=password)
+
+        # self.send(MessageProcessor.create_presence_message(from_user=self.db_user))
 
     def __del__(self):
         self._socket.close()
 
-    def client_authenticate(self, connection):
+    def login_user(self, login, password):
+        "Подключение к серверу"
+        self._socket.send(json.dumps({'name': login, 'password': password}).encode('utf-8'))
+        time.sleep(1)
+        self.client_authenticate()
+
+    def client_authenticate(self):
         """Аутентификация клиента"""
-        message = connection.recv(32)
+        message = self._socket.recv(32)
         hash = hmac.new(b'our_secret_key', message, digestmod = hashlib.sha256)
         digest = hash.digest()
-        connection.send(digest)
+        self._socket.send(digest)
 
     def get_contacts(self):
         """Запрос списка контактов"""
-        return json.dumps({"action": "get_contacts","time": time.ctime(),"user_login": self.login})
+        return json.dumps({"action": "get_contacts","time": time.ctime(),"user_login": self.db_user.name})
 
     def add_contact(self, nickname):
-        """Запрос на добавление контакта"""
-        return json.dumps({"action": "add_contact","user_id": nickname,"time": time.ctime(),"user_login": self.login})
+        contact = self.session.query(User).filter_by(name=nickname).first()
+        if contact is None:
+            contact = User(name=nickname)
+            self.session.add(contact)
+            self.session.commit()
+            contact = self.session.query(User).filter_by(name=nickname).first()
+
+        self.session.add(Contact_list(host_id=self.db_user.id, contact_id=contact.id))
+        self.session.commit()
+
+        return MessageProcessor.add_contact(from_user=self.db_user, user_id=contact.id)
 
     def del_contact(self, nickname):
         """Запрос на удаление контакта"""
-        return json.dumps({"action": "del_contact","user_id": nickname,"time": time.ctime(),"user_login": self.login})
-
-    def create_presence_msg(self):
-        """Формирование presence сообщение"""
-        return json.dumps({"action": "presence",
-                "time": time.ctime(),
-                "user":{"name": self.login,"status": "here"}})
+        return json.dumps({"action": "del_contact","user_id": nickname,"time": time.ctime(),"user_login": self.db_user.name})
 
     def create_exit_msg(self):
         """Формирование сообщения о выходе"""
@@ -81,29 +90,24 @@ class Client(threading.Thread, metaclass=ClientVerifier):
                            "time": time.ctime(),
                            "user": {"name": self.login, "status": "here"}})
 
-    def create_msg(self,to_user, text):
+    def create_msg(self, to_user, text):
         """Формирование сообщения"""
-        return json.dumps({"action": "msg",
-                           "text":text,
-                "time": time.ctime(),
-                "user":{"name": self.login,"status": "here"},
-                          'to_user':to_user})
+        return MessageProcessor.create_message_to_user(from_user=self.db_user, to_user=to_user, message=text)
 
     def send(self, msg):
         """Функция отправки запросов и сообщений"""
         try:
-            print(msg)
-            self._socket.send(msg.encode('utf-8'))
+            self._socket.send(msg.encode_to_json().encode("utf-8"))
             CLIENT_LOG.debug(f'The message {msg} is sent')
-            msg= json.loads(msg)
-            if msg['action']=="msg":
-               self.add_msg_in_history(msg, True)
-            elif msg['action'] == "add_contact":
-                self.contact_in_database(msg['user_id'], 'add')
-            elif msg['action'] == "del_contact":
-                self.contact_in_database(msg['user_id'], 'del')
-            elif msg['action'] == "get_contacts":
-                self.contact_in_database(msg['user_login'], 'get')
+            # msg= json.loads(msg)
+            # if msg['action']=="msg":
+            #    self.add_msg_in_history(msg, True)
+            # elif msg['action'] == "add_contact":
+            #     self.contact_in_database(msg['user_id'], 'add')
+            # elif msg['action'] == "del_contact":
+            #     self.contact_in_database(msg['user_id'], 'del')
+            # elif msg['action'] == "get_contacts":
+            #     self.contact_in_database(msg['user_login'], 'get')
 
         except AttributeError as e:
             print(e)
@@ -112,28 +116,31 @@ class Client(threading.Thread, metaclass=ClientVerifier):
     def contact_in_database(self, nickname, command):
         """Добавление контакта в базу данных клиента"""
         try:
+
             client=self.session.query(User).filter_by(name=self.login).first()
-            contact = self.session.query(User).filter_by(name=nickname).first()
+            contact=self.session.query(User).filter_by(name=nickname).first()
             if contact is None:
-                contact = User(nickname)
+                contact = User(name=nickname)
+                print("client", client)
                 self.session.add(contact)
                 self.session.commit()
             if client is None:
-                client = User(self.login)
+                client = User(name=self.login)
+                print("contact", contact)
                 self.session.add(client)
                 self.session.commit()
             if command == 'add':
-                contact_list = self.session.query(Contact_list).filter_by(contact_id=contact.id, host_id=client.id).first()
+                contact_list = self.session.query(Contact_list).filter_by(contact_name=contact.name, host_name=client.name).first()
 
                 if contact_list is None:
-                    contact_list = Contact_list(client.id, contact.id)
+                    contact_list = Contact_list(host_name=client.name, contact_name=contact.name)
                     self.session.add(contact_list)
                     self.session.commit()
                 else: CLIENT_LOG.debug(f'{nickname} уже в списке контактов')
             elif command=='del':
                 try:
                     contact_list = self.session.query(Contact_list).filter_by(contact_id=contact.id,
-                                                                         host_id=client.id).first()
+                                                                            host_id=client.id).first()
                     self.session.delete(contact_list)
                     self.session.commit()
                     CLIENT_LOG.debug(f'{nickname} удален из списка контактов')
@@ -163,7 +170,7 @@ class Client(threading.Thread, metaclass=ClientVerifier):
                     if contact is None:
                         contact = User(msg['to_user'])
                         self.session.add(contact)
-                    msg = Message_history(client.name, contact.name, msg['text'])
+                    msg = Message_history(client.login, contact.login, msg['text'])
                     self.session.add(msg)
                     self.session.commit()
                 except:
@@ -203,6 +210,7 @@ class Client(threading.Thread, metaclass=ClientVerifier):
         while True:
             try:
                 data = self._socket.recv(10000)
+                print("\n\nrecived     ", data)
                 CLIENT_LOG.debug(f'The message {data.decode("utf-8")} is recieved ')
                 data= data.decode("utf-8")
                 data = data.replace('}{', '};{')

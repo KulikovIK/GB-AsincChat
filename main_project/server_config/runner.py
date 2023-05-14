@@ -17,6 +17,8 @@ from server_config.server_verifier import ServerVerifier
 from server_config.db.server_db import DB as ServerDB
 from server_config.db.models.messanger_db import User, User_history, Contact_list
 
+from src.core.message_processor import MessageProcessor
+
 SERVER_LOG = logging.getLogger("server")
 
 
@@ -49,20 +51,18 @@ class Server(metaclass=ServerVerifier):
        
 
     def run(self):
-        """Функция запуска сервера."""
         while True:
             try:
                 client, addr = self._socket.accept()
             except OSError:
                 pass
-            
             else:
                 print(f'Запрос получен от {str(addr)}')
                 SERVER_LOG.debug(f'Запрос получен от {str(addr)}')
                 self.identify(client)
                 self.server_authenticate(client)
-                self.client_host_port[client] = addr
-                # client.settimeout(5)
+                # self.client_host_port[addr] = client
+                # client.settimeout(2)
                 self.clients.append(client)
 
             responce_ = []
@@ -74,24 +74,26 @@ class Server(metaclass=ServerVerifier):
                     responce_, write_, errors_ = select.select(self.clients, self.clients, [], 0)
             except OSError as err:
                 SERVER_LOG.error(f'Ошибка работы с сокетами: {err.errno}')
-            if write_:
-                # for client_message in write_:
-                msgs, names = self.recieve(write_, self.names, self.clients, self.client_host_port)
-                if 'all' in msgs:
-                    self.send_to_all(msgs, responce_)
-                if msgs:
-                    self.send_to_user(names, msgs)
+            if responce_:
+                self.get_messages(responce_)
+                # print(self.client_host_port)
+                # msgs, names = self.recieve(responce_, self.names, self.clients, self.client_host_port)
+                # if 'all' in msgs:
+                #     self.send_to_all(msgs, responce_)
+                # if msgs:
+                #     self.send_to_user(names, msgs)
 
 
     def server_authenticate(self, connection):
         """Аутентификация клиента"""
         message = os.urandom(32)
-        connection.send(message)
+        try:
+            connection.send(message)
+        except:
+            pass
         hash = hmac.new(b'our_secret_key', message, digestmod = hashlib.sha256)
         digest = hash.digest()
         response = connection.recv(len(digest))
-        print(digest)
-        print(response)
         if hmac.compare_digest(digest, response)== False:
             connection.close()
 
@@ -100,7 +102,7 @@ class Server(metaclass=ServerVerifier):
         name_password = client.recv(10000)
         name_password=json.loads(name_password.decode('utf-8'))
         client_password = self.session.query(User).filter_by(name=name_password['name']).first()
-
+        
         if client_password is None:
             solt = os.urandom(16)
             hash_password = hashlib.pbkdf2_hmac('sha256', name_password['password'].encode(), solt, 100000)
@@ -113,23 +115,16 @@ class Server(metaclass=ServerVerifier):
             self.session.commit()
             print('Client are registered. Try to enter again')
             client.close()
+            return
         else:
-
             solt= client_password.password[:16]
             hash_password = hashlib.pbkdf2_hmac('sha256', name_password['password'].encode(), solt, 100000)
             if hash_password!=client_password.password[16:]:
                 print('Идентификация не пройдена')
                 client.close()
-
-
-    # def log(func):
-    #     @wraps(func)
-    #     def call(*args, **kwargs):
-    #         main_func=inspect.stack()[-2][-3]
-    #         logger.debug(f'Func {func.__name__}{args, kwargs} was called from {main_func}')
-    #         return func(*args, **kwargs)
-    #     return call
-    # @log
+                return
+            
+        self.client_host_port[name_password['name']] = client
 
     @Log(SERVER_LOG)
     def send_to_all(self, msgs, w):
@@ -179,6 +174,20 @@ class Server(metaclass=ServerVerifier):
         except BaseException as e:
             SERVER_LOG.error(e)
 
+    def get_messages(self, sources):
+        for source in sources:
+            try:
+                data_bytes = source.recv(100000).decode("utf-8")
+                data_obj=json.loads(data_bytes)
+
+                if data_obj["action"] == "msg":
+                    destonation = self.client_host_port[data_obj["to_user"]]
+                    destonation.send(data_bytes.encode("utf-8"))
+
+            except:
+                return SERVER_LOG.error('Basedata error')
+
+
     def recieve(self, r, names, clients, client_host_port):
         """Получение сообщений, разбор, перенаправление"""
         msgs= {}
@@ -188,6 +197,7 @@ class Server(metaclass=ServerVerifier):
                 try:
                     data=data.decode('utf-8')
                     data= data.replace('}{', '};{')
+                    # print("\n\ndecoded_data: ", data)
                     msgs_in_data=data.split(';')
                     for msg in msgs_in_data:
                         json_data = json.loads(msg)
@@ -221,7 +231,6 @@ class Server(metaclass=ServerVerifier):
                         elif json_data['action'] == 'del_contact':
                             SERVER_LOG.debug('got del contact')
                             msgs[json_data['user_login']]=self.del_contact(json_data['user_id'], json_data['user_login'])
-
                     return msgs, names
                 except:
                     json_data = json.loads(data)
@@ -256,16 +265,6 @@ class Server(metaclass=ServerVerifier):
                 self.clients.remove(client)
                 return msgs, names
 
-    # def get_socket(self):
-    #     """Создание подключения"""
-    #     s=socket(AF_INET, SOCK_STREAM)
-    #     s.bind((self.host, self.port))
-    #     s.settimeout(0.5)
-
-    #     s.listen(10)
-
-    #     return s
-
     def del_contact(self, nickname, name):
         """Удаление контакта"""
         contact = self.session.query(User).filter_by(name=nickname).first()
@@ -286,11 +285,6 @@ class Server(metaclass=ServerVerifier):
     def add_contact(self, nickname, name):
         """Добавление контакта"""
         new_contact = self.session.query(User).filter_by(name=nickname).first()
-        print("*"*50)
-        print(nickname)
-        print(name)
-        print(new_contact)
-        print("*"*50)
         if new_contact is None:
             new_contact = User(name=nickname, is_active=False)
             self.session.add(new_contact)
@@ -299,7 +293,7 @@ class Server(metaclass=ServerVerifier):
             checking= self.session.query(Contact_list).filter_by(contact_id=new_contact.id).first()
             if checking is None:
                 host= self.session.query(User).filter_by(name=name).first()
-                contact_for_list=Contact_list(host.id, new_contact.id)
+                contact_for_list=Contact_list(user_id=host.id, contact_id=new_contact.id)
                 self.session.add(contact_for_list)
                 self.session.commit()
                 answer=json.dumps({'response': 200, 'alert': f'{nickname} add into contacts'})
@@ -343,8 +337,7 @@ class Server(metaclass=ServerVerifier):
                 self.session.add(client)
 
             client.is_active=True
-            client_history = User_history(ip, client.name)
-
+            client_history = User_history(user_id=client.id, ip_address=ip)
             self.session.add(client)
             self.session.add(client_history)
 

@@ -27,7 +27,8 @@ class MessageProcessor():
             "action": action, 
             "time": time.ctime(),
             "from_user":{
-                "name": from_user,
+                "id": from_user.id,
+                "name": from_user.name,
                 "status": "here",
             }
         }
@@ -37,9 +38,9 @@ class MessageProcessor():
         return json.JSONDecoder(object_hook=MessageProcessor).decode(json_obj)
     
     @staticmethod
-    def create_presence_message(from_user, password, _action:str="presence"):
+    def create_presence_message(from_user, _action:str="presence"):
         genered_message = MessageProcessor._gen_default_message(from_user=from_user, action=_action)
-        genered_message["password"] = password
+        # genered_message["password"] = password
         return MessageProcessor(genered_message)
 
 
@@ -85,7 +86,7 @@ class MessageProcessor():
         return MessageProcessor(genered_message)
 
     @staticmethod
-    def dell_contact(from_user, user_id, __action:str="del_contact"):
+    def dell_contact(from_user, user_id, _action:str="del_contact"):
         genered_message = MessageProcessor._gen_default_message(from_user, action=_action)
         genered_message["user_id"] = user_id
         return MessageProcessor(genered_message)
