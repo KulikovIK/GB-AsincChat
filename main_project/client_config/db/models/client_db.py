@@ -12,14 +12,14 @@ user = Table(
 )
 
 contact_list = Table(
-    'contact_list', mapper_register.metadata,
+    'Contact_list', mapper_register.metadata,
     Column('id', Integer, primary_key=True),
     Column('host_id', ForeignKey('User.id')),
     Column('contact_id', ForeignKey('User.id')),
 )
 
 message_history = Table(
-    'user_history', mapper_register.metadata,
+    'Message_history', mapper_register.metadata,
     Column('id', Integer, primary_key=True),
     Column('time', DateTime),
     Column('from_', ForeignKey('User.name')),

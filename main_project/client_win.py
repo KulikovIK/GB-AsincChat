@@ -33,17 +33,20 @@ socket_lock = threading.Lock()
 
 class Worker(QtCore.QObject):
     finished = QtCore.pyqtSignal()
-    progress = QtCore.pyqtSignal(str)
+    progress = QtCore.pyqtSignal(dict)
 
-    def __init__(self, text) -> None:
-        self.text = text
+    def __init__(self, socket) -> None:
+        self.socket = socket
         super().__init__()
         
 
     def run(self):
-        self.text = f"{self.text + '1'}\n"
-        self.progress.emit(f"{self.text}")
-        self.finished.emit()
+        while True:
+            data = self.socket.recv(10000)
+            data = data.decode("utf-8")
+            json_object = json.loads(data)
+            self.progress.emit(json_object)
+            self.finished.emit()
 
 
 class Ui_chatWindow(object):
@@ -58,12 +61,6 @@ class Ui_chatWindow(object):
         ), port=8007, host='localhost', password=enter_ui.user_password.text())
         
         self.session = self.User.session
-
-        thr_recieve = threading.Thread(
-            target=self.recieve, args=(), daemon=True)
-        thr_recieve.start()
-
-        
 
         self.chat_is_open = False
 
@@ -107,7 +104,7 @@ class Ui_chatWindow(object):
         font.setStrikeOut(False)
         self.btn_send.setFont(font)
         self.btn_send.setObjectName("btn_send")
-        self.btn_send.clicked.connect(self.send_msg)
+        self.btn_send.clicked.connect(self.send_message)
 
         chatWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(chatWindow)
@@ -121,6 +118,16 @@ class Ui_chatWindow(object):
         self.retranslateUi(chatWindow)
         QtCore.QMetaObject.connectSlotsByName(chatWindow)
 
+        self.thread = QtCore.QThread()
+        self.worker = Worker(self.User._socket)
+        self.worker.moveToThread(self.thread)
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.worker.progress.connect(self.get_message)
+        self.thread.start()
+
     def retranslateUi(self, chatWindow):
         _translate = QtCore.QCoreApplication.translate
         chatWindow.setWindowTitle(_translate("chatWindow", "MainWindow"))
@@ -131,46 +138,62 @@ class Ui_chatWindow(object):
     def db_contact_list(self):
         result = []
         contact_list = self.session.query(Contact_list).filter_by(host_id=self.User.db_user.id).all()
-        for line in contact_list:
+        for contact in contact_list:
             contact = self.session.query(User).filter_by(
-                id=line.id).first()
+                id=contact.contact_id).first()
             result.append(contact.name)
         return result
 
     def client_history(self):
-        contact = self.session.query(User).filter_by(
-            name=self.chat_is_open).first()
-        msgs = {}
-        try:
-            msgs = self.session.query(Message_history).filter(and_(
-                or_(Message_history.from_ == self.User.login,
-                    Message_history.from_ == contact.name),
-                or_(Message_history.to_ == contact.name, Message_history.to_ == self.User.login))).order_by(desc(Message_history.id)).limit(6)
-        except AttributeError:
-            pass
+        user = self.User.db_user
+
+        chat_history = self.session.query(
+            Message_history).filter(
+                or_(Message_history.from_ == user.name,
+                    Message_history.to_ == user.name)
+                    ).order_by(desc(Message_history.id)).limit(6)
+        
         self.chat.setText('')
-        msg_list = []
-        if msgs:
-            for msg in msgs:
-                msg = msg.msg + '\n' + \
-                    str(msg.time.replace(microsecond=0)) + \
-                    ' from '+msg.from_+'\n\n'
-                msg_list.append(msg)
-            for msg in msg_list[::-1]:
-                self.chat.setText(self.chat.toPlainText() + msg)
+        message_list = []
+        if chat_history:
+            for message in chat_history:
+                message = message.message + '\n' + \
+                    str(message.time.replace(microsecond=0)) + \
+                    ' from '+ message.from_+'\n\n'
+                message_list.append(message)
+            for message in message_list[::-1]:
+                self.chat.setText(self.chat.toPlainText() + message)
 
     def on_2Clicked(self, item):
         self.chat_is_open = item.text()
         self.client_history()
 
-    def send_msg(self):
+    def send_message(self):
         if self.chat_is_open:
-            self.User.send(self.User.create_msg(
+            self.User.send(self.User.create_message(
                 self.chat_is_open, self.text_enter.toPlainText()))
-            msg = self.text_enter.toPlainText()+'\n' + \
-                str(datetime.datetime.now().replace(microsecond=0)) + \
-                ' from '+self.User.db_user.name+'\n\n'
-            self.chat.setText(self.chat.toPlainText() + msg)
+            
+            message = self.configurate_message_string(
+                sender=self.User.db_user.name, 
+                message=self.text_enter.toPlainText()
+                )
+            # message = self.text_enter.toPlainText()+'\n' + \
+            #     str(datetime.datetime.now().replace(microsecond=0)) + \
+            #     ' from '+self.User.db_user.name+'\n\n'
+            self.chat.setText(self.chat.toPlainText() + message)
+
+            self.text_enter.setPlainText('')
+
+    def get_message(self, message):
+        if self.chat_is_open:
+            message = self.configurate_message_string(
+                sender=message["from_user"]["name"], 
+                message=message["message"]
+                )
+            # message = self.text_enter.toPlainText()+'\n' + message.get("message", "") + \
+            #     str(datetime.datetime.now().replace(microsecond=0)) + \
+            #     ' from '+self.User.db_user.name+'\n\n'
+            self.chat.setText(self.chat.toPlainText() + message)
 
             self.text_enter.setPlainText('')
 
@@ -181,40 +204,29 @@ class Ui_chatWindow(object):
             self.contact_list_2.addItem(str(text))
             self.User.send(self.User.add_contact(text))
 
-    def recieve(self):
-        time.sleep(2)
-        while True:
-            try:
-                data = self.User._socket.recv(10000)
-                data = data.decode("utf-8")
-                json_data = json.loads(data)
-                self.thread = QtCore.QThread()
-                # Step 3: Create a worker object
-                self.worker = Worker(text=json_data["message"])
-                # Step 4: Move worker to the thread
-                self.worker.moveToThread(self.thread)
-                # Step 5: Connect signals and slots
-                self.thread.started.connect(self.worker.run)
-                self.worker.finished.connect(self.thread.quit)
-                self.worker.finished.connect(self.worker.deleteLater)
-                self.thread.finished.connect(self.thread.deleteLater)
-                self.worker.progress.connect(self.chat.setText)
-                # Step 6: Start the thread
-                self.thread.start()
-                self.thread.finished.connect(
-                lambda: self.chat.setText("Long-Running Step: 0")
-                )
+    def configurate_message_string(self, sender, message):
+        return  f"{sender}: {message} \n" \
+                f"{str(datetime.datetime.now().replace(microsecond=0))}\n\n"
+
+    # def recieve(self):
+    #     time.sleep(2)
+    #     while True:
+    #         try:
+    #             data = self.User._socket.recv(10000)
+    #             data = data.decode("utf-8")
+    #             json_data = json.loads(data)
+
         #         CLIENT_LOG.debug(f'The message {data.decode("utf-8")} is recieved ')
         #         data = data.decode("utf-8")
         #         data = data.replace('}{', '};{')
-        #         msgs_in_data = data.split(';')
+        #         chat_history_in_data = data.split(';')
         #         print("data",data)
-        #         for msg in msgs_in_data:
-        #             print("msg", msg)
-        #             json_data = json.loads(msg)
+        #         for message in chat_history_in_data:
+        #             print("message", message)
+        #             json_data = json.loads(message)
         #             print("     ", json_data)
         #             if json_data.get('action'):
-        #                 # self.User.add_msg_in_history(json_data, False)
+        #                 # self.User.add_message_in_history(json_data, False)
         #                 if self.chat_is_open == json_data['from_user']['name'] or self.chat_is_open == 'all':
         #                     print(self.chat.toPlainText())
         #                     self.chat.setText(
@@ -223,21 +235,21 @@ class Ui_chatWindow(object):
                         # self.client_history()
                         
                         # print("2"*50)
-                        # new_msg = QtWidgets.QMessageBox(chatWindow)
-                        # new_msg.setWindowTitle(
+                        # new_message = QtWidgets.QMessageBox(chatWindow)
+                        # new_message.setWindowTitle(
                         #     "from " + str(json_data['from_user']['name']))
                         # print("3"*50)
-                        # new_msg.setText(json_data['message'])
+                        # new_message.setText(json_data['message'])
                         
-                        # new_msg.setStandardButtons(
+                        # new_message.setStandardButtons(
                         #     QtWidgets.QMessageBox.Cancel)
 
-                        # new_msg.exec_()
-            except BaseException as e:
-                print("*"*50)
-                CLIENT_LOG.error(e)
-                CLIENT_LOG.debug(f'recieve finished')
-                break
+                        # new_message.exec_()
+            # except BaseException as e:
+            #     print("*"*50)
+            #     CLIENT_LOG.error(e)
+            #     CLIENT_LOG.debug(f'recieve finished')
+            #     break
 
 
 class Ui_Dialog(object):

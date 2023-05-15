@@ -40,10 +40,11 @@ class Client(threading.Thread, metaclass=ClientVerifier):
         self.port = port
         self.db = ClientDB()
         self.session = self.db.session
-        self.db_user = self.session.query(User).filter_by(name=login).first()
+        self.get_user_from_db(name=login)
         self._socket.connect((self.host, self.port))
 
         self.login_user(login=login, password=password)
+
 
         # self.send(MessageProcessor.create_presence_message(from_user=self.db_user))
 
@@ -62,6 +63,13 @@ class Client(threading.Thread, metaclass=ClientVerifier):
         hash = hmac.new(b'our_secret_key', message, digestmod = hashlib.sha256)
         digest = hash.digest()
         self._socket.send(digest)
+
+    def get_user_from_db(self, name):
+        self.db_user = self.session.query(User).filter_by(name=name).first()
+        if self.db_user is None:
+            self.db_user = User(name=name)
+            self.session.add(self.db_user)
+            self.session.commit()
 
     def get_contacts(self):
         """Запрос списка контактов"""
@@ -90,7 +98,7 @@ class Client(threading.Thread, metaclass=ClientVerifier):
                            "time": time.ctime(),
                            "user": {"name": self.login, "status": "here"}})
 
-    def create_msg(self, to_user, text):
+    def create_message(self, to_user, text):
         """Формирование сообщения"""
         return MessageProcessor.create_message_to_user(from_user=self.db_user, to_user=to_user, message=text)
 
