@@ -14,8 +14,7 @@ from PyQt5.QtCore import QObject
 from client_config.db.client_db import DB
 from client import Client
 from client_config.db.models.client_db import User, Message_history, Contact_list
-from sqlalchemy import create_engine, desc, or_, and_
-from sqlalchemy.orm import sessionmaker, query
+from sqlalchemy import desc, or_
 
 import threading
 import datetime
@@ -35,17 +34,16 @@ class Worker(QtCore.QObject):
     finished = QtCore.pyqtSignal()
     progress = QtCore.pyqtSignal(dict)
 
-    def __init__(self, socket) -> None:
-        self.socket = socket
+    def __init__(self, getter) -> None:
+        self.getter = getter
         super().__init__()
         
 
     def run(self):
         while True:
-            data = self.socket.recv(10000)
-            data = data.decode("utf-8")
-            json_object = json.loads(data)
-            self.progress.emit(json_object)
+            data = self.getter()
+            # json_object = json.loads(data)
+            self.progress.emit(data)
             self.finished.emit()
 
 
@@ -78,7 +76,7 @@ class Ui_chatWindow(object):
         self.contact_list_2 = QtWidgets.QListWidget(self.verticalLayoutWidget)
         self.contact_list_2.setObjectName("contact_list_2")
         self.contact_list.addWidget(self.contact_list_2)
-        self.contact_list_2.addItems(self.db_contact_list())
+        self.contact_list_2.addItems(self.User.get_contact_list_from_db())
         self.contact_list_2.itemDoubleClicked.connect(self.on_2Clicked)
 
         self.text_enter = QtWidgets.QPlainTextEdit(self.centralwidget)
@@ -119,7 +117,7 @@ class Ui_chatWindow(object):
         QtCore.QMetaObject.connectSlotsByName(chatWindow)
 
         self.thread = QtCore.QThread()
-        self.worker = Worker(self.User._socket)
+        self.worker = Worker(self.User.get_data_as_dict)
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(self.thread.quit)
@@ -135,15 +133,6 @@ class Ui_chatWindow(object):
             "chatWindow", "+      New contact"))
         self.btn_send.setText(_translate("chatWindow", ">"))
 
-    def db_contact_list(self):
-        result = []
-        contact_list = self.session.query(Contact_list).filter_by(host_id=self.User.db_user.id).all()
-        for contact in contact_list:
-            contact = self.session.query(User).filter_by(
-                id=contact.contact_id).first()
-            result.append(contact.name)
-        return result
-
     def client_history(self):
         user = self.User.db_user
 
@@ -156,10 +145,11 @@ class Ui_chatWindow(object):
         self.chat.setText('')
         message_list = []
         if chat_history:
-            for message in chat_history:
-                message = message.message + '\n' + \
-                    str(message.time.replace(microsecond=0)) + \
-                    ' from '+ message.from_+'\n\n'
+            for message_from_history in chat_history:
+                message = self.configurate_message_string(
+                    sender=message_from_history.from_, 
+                    message=message_from_history.message,
+                    time=message_from_history.time)
                 message_list.append(message)
             for message in message_list[::-1]:
                 self.chat.setText(self.chat.toPlainText() + message)
@@ -177,22 +167,16 @@ class Ui_chatWindow(object):
                 sender=self.User.db_user.name, 
                 message=self.text_enter.toPlainText()
                 )
-            # message = self.text_enter.toPlainText()+'\n' + \
-            #     str(datetime.datetime.now().replace(microsecond=0)) + \
-            #     ' from '+self.User.db_user.name+'\n\n'
             self.chat.setText(self.chat.toPlainText() + message)
 
             self.text_enter.setPlainText('')
 
     def get_message(self, message):
-        if self.chat_is_open:
+        if self.chat_is_open == message["from_user"]["name"]:
             message = self.configurate_message_string(
                 sender=message["from_user"]["name"], 
                 message=message["message"]
                 )
-            # message = self.text_enter.toPlainText()+'\n' + message.get("message", "") + \
-            #     str(datetime.datetime.now().replace(microsecond=0)) + \
-            #     ' from '+self.User.db_user.name+'\n\n'
             self.chat.setText(self.chat.toPlainText() + message)
 
             self.text_enter.setPlainText('')
@@ -204,53 +188,9 @@ class Ui_chatWindow(object):
             self.contact_list_2.addItem(str(text))
             self.User.send(self.User.add_contact(text))
 
-    def configurate_message_string(self, sender, message):
+    def configurate_message_string(self, sender, message, time=str(datetime.datetime.now().replace(microsecond=0))):
         return  f"{sender}: {message} \n" \
-                f"{str(datetime.datetime.now().replace(microsecond=0))}\n\n"
-
-    # def recieve(self):
-    #     time.sleep(2)
-    #     while True:
-    #         try:
-    #             data = self.User._socket.recv(10000)
-    #             data = data.decode("utf-8")
-    #             json_data = json.loads(data)
-
-        #         CLIENT_LOG.debug(f'The message {data.decode("utf-8")} is recieved ')
-        #         data = data.decode("utf-8")
-        #         data = data.replace('}{', '};{')
-        #         chat_history_in_data = data.split(';')
-        #         print("data",data)
-        #         for message in chat_history_in_data:
-        #             print("message", message)
-        #             json_data = json.loads(message)
-        #             print("     ", json_data)
-        #             if json_data.get('action'):
-        #                 # self.User.add_message_in_history(json_data, False)
-        #                 if self.chat_is_open == json_data['from_user']['name'] or self.chat_is_open == 'all':
-        #                     print(self.chat.toPlainText())
-        #                     self.chat.setText(
-        #                         json_data['message'])
-                        
-                        # self.client_history()
-                        
-                        # print("2"*50)
-                        # new_message = QtWidgets.QMessageBox(chatWindow)
-                        # new_message.setWindowTitle(
-                        #     "from " + str(json_data['from_user']['name']))
-                        # print("3"*50)
-                        # new_message.setText(json_data['message'])
-                        
-                        # new_message.setStandardButtons(
-                        #     QtWidgets.QMessageBox.Cancel)
-
-                        # new_message.exec_()
-            # except BaseException as e:
-            #     print("*"*50)
-            #     CLIENT_LOG.error(e)
-            #     CLIENT_LOG.debug(f'recieve finished')
-            #     break
-
+                f"{time}\n\n"
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
