@@ -14,7 +14,7 @@ from PyQt5.QtCore import QObject
 from client_config.db.client_db import DB
 from client import Client
 from client_config.db.models.client_db import User, Message_history, Contact_list
-from sqlalchemy import desc, or_
+from sqlalchemy import desc, or_, and_
 
 import threading
 import datetime
@@ -42,7 +42,6 @@ class Worker(QtCore.QObject):
     def run(self):
         while True:
             data = self.getter()
-            # json_object = json.loads(data)
             self.progress.emit(data)
             self.finished.emit()
 
@@ -56,7 +55,7 @@ class Ui_chatWindow(object):
         chatWindow.resize(555, 444)
 
         self.User = Client(login=enter_ui.user_name.text(
-        ), port=8007, host='localhost', password=enter_ui.user_password.text())
+        ), port=8128, host='localhost', password=enter_ui.user_password.text())
         
         self.session = self.User.session
 
@@ -138,9 +137,12 @@ class Ui_chatWindow(object):
 
         chat_history = self.session.query(
             Message_history).filter(
-                or_(Message_history.from_ == user.name,
+                or_(
+                    and_(Message_history.from_ == user.name,
+                    Message_history.to_ == self.chat_is_open),
+                    and_(Message_history.from_ == self.chat_is_open,
                     Message_history.to_ == user.name)
-                    ).order_by(desc(Message_history.id)).limit(6)
+                )).order_by(desc(Message_history.id)).limit(6)
         
         self.chat.setText('')
         message_list = []
@@ -172,7 +174,7 @@ class Ui_chatWindow(object):
             self.text_enter.setPlainText('')
 
     def get_message(self, message):
-        if self.chat_is_open == message["from_user"]["name"]:
+        if self.chat_is_open == message["from_user"]["name"] or message["from_user"]["name"] in ("SERVER", "ALL"):
             message = self.configurate_message_string(
                 sender=message["from_user"]["name"], 
                 message=message["message"]

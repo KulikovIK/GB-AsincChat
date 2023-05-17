@@ -54,14 +54,14 @@ class Client(threading.Thread, metaclass=ClientVerifier):
     def login_user(self, login, password):
         "Подключение к серверу"
         self._socket.send(json.dumps(
-            {'name': login, 'password': password}).encode(self.ENCODING))
+            {"name": login, "password": password}).encode(self.ENCODING))
         time.sleep(1)
         self.client_authenticate()
 
     def client_authenticate(self):
         """Аутентификация клиента"""
         message = self._socket.recv(self.BLOCK_LEN)
-        hash = hmac.new(b'our_secret_key', message, digestmod=hashlib.sha256)
+        hash = hmac.new(secret_key, message, digestmod=hashlib.sha256)
         digest = hash.digest()
         self._socket.send(digest)
 
@@ -99,15 +99,14 @@ class Client(threading.Thread, metaclass=ClientVerifier):
             contact = self.session.query(User).filter_by(name=nickname).first()
 
         self.session.add(Contact_list(
-            host_id=self.db_user.id, 
+            host_id=self.db_user.id,
             contact_id=contact.id))
-        
+
         self.session.commit()
 
         return MessageProcessor.add_contact(from_user=self.db_user, user_id=contact.id)
 
     def add_message_to_db(self, message: dict):
-
         history = Message_history(
             from_=message.__dict__["from_user"].__dict__["name"],
             to_=message.__dict__["to_user"],
@@ -129,139 +128,7 @@ class Client(threading.Thread, metaclass=ClientVerifier):
                 data_for_send.encode_to_json().encode(self.ENCODING))
             CLIENT_LOG.debug(f'Сообщение {data_for_send} отправлено')
             self.add_message_to_db(data_for_send)
-            # msg= json.loads(msg)
-            # if msg['action']=="msg":
-            #    self.add_msg_in_history(msg, True)
-            # elif msg['action'] == "add_contact":
-            #     self.contact_in_database(msg['user_id'], 'add')
-            # elif msg['action'] == "del_contact":
-            #     self.contact_in_database(msg['user_id'], 'del')
-            # elif msg['action'] == "get_contacts":
-            #     self.contact_in_database(msg['user_login'], 'get')
 
         except AttributeError as e:
             print(e)
             CLIENT_LOG.error(e)
-
-    def contact_in_database(self, nickname, command):
-        """Добавление контакта в базу данных клиента"""
-        try:
-
-            client = self.session.query(
-                User).filter_by(name=self.login).first()
-            contact = self.session.query(User).filter_by(name=nickname).first()
-            if contact is None:
-                contact = User(name=nickname)
-                print("client", client)
-                self.session.add(contact)
-                self.session.commit()
-            if client is None:
-                client = User(name=self.login)
-                print("contact", contact)
-                self.session.add(client)
-                self.session.commit()
-            if command == 'add':
-                contact_list = self.session.query(Contact_list).filter_by(
-                    contact_name=contact.name, host_name=client.name).first()
-
-                if contact_list is None:
-                    contact_list = Contact_list(
-                        host_name=client.name, contact_name=contact.name)
-                    self.session.add(contact_list)
-                    self.session.commit()
-                else:
-                    CLIENT_LOG.debug(f'{nickname} уже в списке контактов')
-            elif command == 'del':
-                try:
-                    contact_list = self.session.query(Contact_list).filter_by(contact_id=contact.id,
-                                                                              host_id=client.id).first()
-                    self.session.delete(contact_list)
-                    self.session.commit()
-                    CLIENT_LOG.debug(f'{nickname} удален из списка контактов')
-                except:
-                    CLIENT_LOG.debug(f'{nickname} ошибка удаления')
-            elif command == 'get':
-                result = []
-                contact_list = self.session.query(Contact_list).all()
-                for line in contact_list:
-                    contact = self.session.query(User).filter_by(
-                        id=line.contact_id).first()
-                    result.append(contact.name)
-                CLIENT_LOG.debug(f'Cписок контактов: {result} ')
-        except:
-            self.session.rollback()
-            CLIENT_LOG.debug('Error, can`t add/del/get contact ')
-
-    def add_msg_in_history(self, msg, send=True):
-        """Добаление сообщения в базу данных клиента"""
-        with socket_lock:
-            if send:
-                try:
-                    client = self.session.query(
-                        User).filter_by(name=self.login).first()
-                    if client is None:
-                        client = User(self.login)
-                        self.session.add(client)
-                    contact = self.session.query(User).filter_by(
-                        name=msg['to_user']).first()
-                    if contact is None:
-                        contact = User(msg['to_user'])
-                        self.session.add(contact)
-                    msg = Message_history(
-                        client.login, contact.login, msg['text'])
-                    self.session.add(msg)
-                    self.session.commit()
-                except:
-                    self.session.rollback()
-                    CLIENT_LOG.debug('Error, can`t add message into database')
-            else:
-                try:
-                    client = self.session.query(User).filter_by(
-                        name=msg['to_user']).first()
-                    if client is None:
-                        client = User(self.login)
-                        self.session.add(client)
-                    contact = self.session.query(User).filter_by(
-                        name=msg['user']['name']).first()
-                    if contact is None:
-                        contact = User(msg['to_user'])
-                        self.session.add(contact)
-                    msg = Message_history(
-                        contact.name, client.name, msg['text'])
-                    self.session.add(msg)
-                    self.session.commit()
-
-                    self.got_message = True
-                except:
-                    self.session.rollback()
-                    CLIENT_LOG.debug('Error, can`t add message into database')
-
-    def user_communication(self):
-        name = input('Please, enter your name')
-        while 1:
-            msg = input('Enter your message, or q for exit')
-            if msg == 'q':
-                break
-            else:
-                self.send(self.create_msg(name, msg), self._socket)
-
-    def recieve(self):
-        """Функция получения сообщений"""
-        time.sleep(2)
-        while True:
-            try:
-                data = self.get_data_as_dict()
-                print("\n\nrecived     ", data)
-                CLIENT_LOG.debug(
-                    f'The message {data.decode("utf-8")} is recieved ')
-                data = data.decode("utf-8")
-                data = data.replace('}{', '};{')
-                msgs_in_data = data.split(';')
-                for msg in msgs_in_data:
-                    json_data = json.loads(msg)
-                    if json_data.get('action'):
-                        self.add_msg_in_history(json_data, False)
-            except BaseException as e:
-                CLIENT_LOG.error(e)
-                CLIENT_LOG.debug(f'recieve finished')
-                break

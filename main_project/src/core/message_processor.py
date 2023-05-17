@@ -1,5 +1,5 @@
 import json
-import time
+import datetime
 from typing import Any
 
 
@@ -25,7 +25,7 @@ class MessageProcessor():
     def _gen_default_message(from_user, action):
         return {
             "action": action,
-            "time": time.ctime(),
+            "time": str(datetime.datetime.now().replace(microsecond=0)),
             "from_user": {
                 "id": from_user.id,
                 "name": from_user.name,

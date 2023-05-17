@@ -21,7 +21,7 @@ contact_list = Table(
 message_history = Table(
     'Message_history', mapper_register.metadata,
     Column('id', Integer, primary_key=True),
-    Column('time', DateTime),
+    Column('time', String),
     Column('from_', ForeignKey('User.name')),
     Column('to_', ForeignKey('User.name')),
     Column('message', Text),
