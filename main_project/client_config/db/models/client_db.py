@@ -10,6 +10,7 @@ user = Table(
     Column('id', Integer, primary_key=True),
     Column('name', String)
 )
+""" Объявление таблицы базы данных пользователя """
 
 contact_list = Table(
     'Contact_list', mapper_register.metadata,
@@ -17,6 +18,7 @@ contact_list = Table(
     Column('host_id', ForeignKey('User.id')),
     Column('contact_id', ForeignKey('User.id')),
 )
+""" Объявление таблицы базы данных констактов пользователя """
 
 message_history = Table(
     'Message_history', mapper_register.metadata,
@@ -26,6 +28,7 @@ message_history = Table(
     Column('to_', ForeignKey('User.name')),
     Column('message', Text),
 )
+""" Объявление таблицы базы данных истории переписки пользователя """
 
 
 class User:

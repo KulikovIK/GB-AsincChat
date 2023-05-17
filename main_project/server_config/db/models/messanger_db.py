@@ -13,6 +13,7 @@ user = Table(
     Column('password', String(120), nullable=False),
     Column('is_active', Boolean, default=True),
 )
+""" Объявление таблицы базы данных пользователя """
 
 user_history = Table(
     'User_history',
@@ -23,6 +24,7 @@ user_history = Table(
     Column('entry_time', DateTime, default=datetime.utcnow),
     Column('ip_address', String(256), nullable=False)
 )
+""" Объявление таблицы базы данных истории посещения системы пользователем """
 
 contact_list = Table(
     'Contact_list',
@@ -33,6 +35,7 @@ contact_list = Table(
     Column('contact_id', ForeignKey(
         'User.id', ondelete='CASCADE'), nullable=False)
 )
+""" Объявление таблицы базы данных констактов пользователя """
 
 
 class User:

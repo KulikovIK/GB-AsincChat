@@ -2,7 +2,6 @@ from socket import *
 import select
 from src.core.message_processor import MessageProcessor
 from src.core.log_decorator import Log
-from threading import Thread
 
 import logging
 from server_config.loger import config_server_log
@@ -22,7 +21,7 @@ from src.core.message_processor import MessageProcessor
 SERVER_LOG = logging.getLogger("server")
 
 
-class Server(Thread, metaclass=ServerVerifier):
+class Server(metaclass=ServerVerifier):
 
     BLOCK_LEN: int = 1024
     EOM: bytes = b"ENDOFMESSAGE___"
@@ -44,6 +43,21 @@ class Server(Thread, metaclass=ServerVerifier):
     names = {}
 
     def __init__(self, host: str, port: int) -> None:
+        """
+        Инициализация класса Server с настройкой параметров:
+            self.host - ip адрес сервера
+            self.port - порт сервера
+            self.db  - подключение базы данных
+
+            Инициализация сокета
+            self._socket.bind((self.host, self.port))
+            self._socket.listen(5)
+            self._socket.settimeout(0.5)
+
+            Получение доступа к механизму сессий SQLAlchemy
+            self.session = self.db.session
+        """
+
         self.host = host
         self.port = port
         self.db = ServerDB()
@@ -51,13 +65,13 @@ class Server(Thread, metaclass=ServerVerifier):
         self._socket.listen(5)
         self._socket.settimeout(0.5)
         self.session = self.db.session
-        super().__init__()
 
     def __del__(self):
         self._socket.close()
 
     @Log(SERVER_LOG)
     def run(self):
+        """ Главный метод запуска процесса прослушивания портов """
         while True:
             try:
                 client, addr = self._socket.accept()
@@ -282,5 +296,4 @@ if __name__ == '__main__':
 
     server = Server(port=8128, ip="localhost")
 
-    server.daemon = True
     server.run()

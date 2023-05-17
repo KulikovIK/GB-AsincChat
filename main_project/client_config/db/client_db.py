@@ -8,6 +8,7 @@ class DB(object):
     DB_BASE = mapper_register.metadata
 
     def __init__(self):
+        """ Инициализация базы данных клиента, её движка и получение настроек проекта """
         self.config = Config.__dict__
         if self.config["DEBUG"]:
             echo = True
@@ -19,6 +20,7 @@ class DB(object):
         self.session = session()
 
     def check_connection(self):
+        """ Метод контроля работы базы данных """
         result = False
         try:
             conn = self.engine.connect()
@@ -30,8 +32,10 @@ class DB(object):
 
         return result
 
-    def create_tables(self):   
+    def create_tables(self):
+        """ Метод создания таблиц базы данных """
         self.DB_BASE.create_all(self.engine)
 
     def drop_tables(self):
+        """ Метод удаления таблиц базы данных """
         self.DB_BASE.drop_all(self.engine)
