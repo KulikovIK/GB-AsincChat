@@ -127,7 +127,10 @@ class Client(threading.Thread, metaclass=ClientVerifier):
             self._socket.send(
                 data_for_send.encode_to_json().encode(self.ENCODING))
             CLIENT_LOG.debug(f'Сообщение {data_for_send} отправлено')
-            self.add_message_to_db(data_for_send)
+            try:
+                self.add_message_to_db(data_for_send)
+            except KeyError:
+                pass
 
         except AttributeError as e:
             print(e)
